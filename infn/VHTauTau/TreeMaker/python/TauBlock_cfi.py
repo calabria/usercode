@@ -8,5 +8,8 @@ tauBlock = cms.EDAnalyzer("TauBlock",
   muonSrc         = cms.InputTag("selectedMuonsPt"),
   srcBeamSpot     = cms.untracked.InputTag("offlineBeamSpot"),
   offlineBeamSpot = cms.InputTag('offlineBeamSpot'),
-  genParticles    = cms.InputTag("genParticles")
+  genParticles    = cms.InputTag("genParticles"),
+  qualityCuts = PFTauQualityCuts,# set the standard quality cuts
+  #Delta-Beta corrections to remove Pileup
+  particleFlowSrc = cms.InputTag("particleFlow"),
 )

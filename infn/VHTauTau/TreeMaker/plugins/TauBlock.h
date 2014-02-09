@@ -31,6 +31,9 @@
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/Common/interface/Ref.h"
 
+#include "RecoTauTag/RecoTau/interface/RecoTauQualityCuts.h"
+#include "RecoTauTag/RecoTau/interface/RecoTauVertexAssociator.h"
+
 class TClonesArray;
 class Tau;
 
@@ -40,6 +43,7 @@ private:
   virtual void beginJob();
   virtual void beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup) {}
   virtual void analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup);
+  virtual void beginEvent(const edm::Event& iEvent, const edm::EventSetup& iSetup);
   virtual void endJob() {}
 
 public:
@@ -63,6 +67,15 @@ private:
   edm::InputTag _beamSpotInputTag;
   bool _beamSpotCorr;
   edm::InputTag genParticleSrc_;
+  edm::ParameterSet qualityCutsPSet_;
+  edm::InputTag pfCandSrc_;
+  edm::InputTag vertexSrc_;
+
+  std::auto_ptr<reco::tau::RecoTauVertexAssociator> vertexAssociator_;
+  std::auto_ptr<reco::tau::RecoTauQualityCuts> qcuts_;
+  // Inverted QCut which selects tracks with bad DZ/trackWeight
+  std::auto_ptr<reco::tau::RecoTauQualityCuts> pileupQcutsPUTrackSelection_;
+  std::auto_ptr<reco::tau::RecoTauQualityCuts> pileupQcutsGeneralQCuts_;
 
   typedef std::vector<double> vdouble;
 

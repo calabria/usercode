@@ -41,6 +41,11 @@
 #include "RecoTauTag/RecoTau/interface/RecoTauVertexAssociator.h"
 #include "TauAnalysis/CandidateTools/interface/svFitAuxFunctions.h"
 
+#include <functional>
+#include <boost/foreach.hpp>
+#include "RecoTauTag/RecoTau/interface/RecoTauQualityCuts.h"
+#include "RecoTauTag/RecoTau/interface/ConeTools.h"
+
 using namespace reco;
 using namespace std;
 using namespace edm;
@@ -219,7 +224,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
    double IPxySigLead = 9999;
    double IPzLead = 9999;
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona IP
+   ////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona IP
 
    if((it->signalPFGammaCands().size() > 0 || it->signalPFGammaCands().size() == 0) && it->signalPFChargedHadrCands().size() == 1){
 
@@ -321,7 +326,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 
    }
    
-////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona SV
+   ////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona SV
 
    reco::TransientTrack transtrack0; 
    reco::TransientTrack transtrack1; 
@@ -508,6 +513,108 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 
 //-------------------------------------------------------------------------------
 
+std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Handle<reco::PFCandidateCollection> pfCandHandle_, std::auto_ptr<tau::RecoTauQualityCuts> qcuts_, std::auto_ptr<tau::RecoTauQualityCuts> pileupQcutsPUTrackSelection_, std::auto_ptr<tau::RecoTauQualityCuts> pileupQcutsGeneralQCuts_, double coneRadius = 0.5, double dBCone = 0.8, double deltaBetaFactor = 0.3){
+
+  std::vector<double> results;
+
+  std::vector<reco::PFCandidateRef> chargedPFCandidatesInEvent_;
+  std::vector<reco::PFCandidateRef> chargedHadPFCandidatesInEvent_;
+  std::vector<reco::PFCandidateRef> gammaPFCandidatesInEvent_;
+  std::vector<reco::PFCandidateRef> isoPU;
+
+		std::cout<<"ngul a sord1"<<std::endl;
+
+  for (size_t i = 0; i < pfCandHandle_->size(); ++i) {
+
+      	reco::PFCandidateRef pfCand(pfCandHandle_, i);
+	if (pfCand->charge() != 0) chargedPFCandidatesInEvent_.push_back(pfCand);
+      	if (PFCandidate::ParticleType((*pfCand).particleId()) == PFCandidate::h) chargedHadPFCandidatesInEvent_.push_back(pfCand);
+	else if(PFCandidate::ParticleType((*pfCand).particleId()) == PFCandidate::gamma) gammaPFCandidatesInEvent_.push_back(pfCand);
+
+  }
+
+		std::cout<<"ngul a sord2"<<std::endl;
+
+  typedef reco::tau::cone::DeltaRPtrFilter<PFCandidateRef> DRFilter;
+  DRFilter filter(it->p4(), 0, coneRadius);
+
+  std::vector<PFCandidateRef> isoCharged_filter;
+  std::vector<PFCandidateRef> isoNeutral_filter;
+
+		std::cout<<"ngul a sord3"<<std::endl;
+
+  BOOST_FOREACH(const PFCandidateRef& isoObject, chargedHadPFCandidatesInEvent_) {
+
+      if(filter(isoObject)) isoCharged_filter.push_back(isoObject);
+
+  }
+  BOOST_FOREACH(const PFCandidateRef& isoObject, gammaPFCandidatesInEvent_) {
+
+      if(filter(isoObject)) isoNeutral_filter.push_back(isoObject);
+
+  }
+
+
+		std::cout<<"ngul a sord4"<<std::endl;
+  // First select by inverted the DZ/track weight cuts. True = invert
+  //std::cout << "Initial PFCands: " << chargedPFCandidatesInEvent_.size()
+  //  << std::endl;
+
+  std::vector<PFCandidateRef> allPU = pileupQcutsPUTrackSelection_->filterRefs(chargedPFCandidatesInEvent_, true);
+
+  // Now apply the rest of the cuts, like pt, and TIP, tracker hits, etc
+  std::vector<PFCandidateRef> cleanPU = pileupQcutsGeneralQCuts_->filterRefs(allPU);
+
+  // Only select PU tracks inside the isolation cone.
+  DRFilter deltaBetaFilter(it->p4(), 0, dBCone);
+  BOOST_FOREACH(const reco::PFCandidateRef& cand, cleanPU) {
+
+      if (deltaBetaFilter(cand)) isoPU.push_back(cand);
+
+  }
+
+		std::cout<<"ngul a sord5"<<std::endl;
+
+  double chargedPt = 0.0;
+  double puPt = 0.0;
+  double neutralPt = 0.0;
+
+  BOOST_FOREACH(const PFCandidateRef& isoObject, isoCharged_filter) {
+
+      	chargedPt += isoObject->pt();
+
+  }
+  BOOST_FOREACH(const PFCandidateRef& isoObject, isoNeutral_filter) {
+
+      	neutralPt += isoObject->pt();
+
+  }
+  BOOST_FOREACH(const PFCandidateRef& isoObject, isoPU) {
+
+      	puPt += isoObject->pt();
+
+  }
+
+		std::cout<<"ngul a sord6"<<std::endl;
+
+  results.push_back(chargedPt);
+  results.push_back(neutralPt);
+  results.push_back(puPt);
+
+  std::cout<<"Ch: "<<results[0]<<" Gamma: "<<results[1]<<" dB: "<<results[2]<<std::endl;
+
+  neutralPt -= deltaBetaFactor*puPt;
+
+  if (neutralPt < 0.0) neutralPt = 0.0;
+
+  results.push_back(neutralPt);
+
+  return results;
+
+}
+
+//-------------------------------------------------------------------------------
+
 TauBlock::TauBlock(const edm::ParameterSet& iConfig) :
   _verbosity(iConfig.getParameter<int>("verbosity")),
   _inputTag(iConfig.getParameter<edm::InputTag>("patTauSrc")),
@@ -516,10 +623,28 @@ TauBlock::TauBlock(const edm::ParameterSet& iConfig) :
   _beamSpotInputTag(iConfig.getParameter<edm::InputTag>("offlineBeamSpot")),
   _beamSpotCorr(iConfig.getParameter<bool>("beamSpotCorr")),
   srcBeamSpot_(iConfig.getParameter<edm::InputTag>("srcBeamSpot")),
-  genParticleSrc_(iConfig.getParameter<edm::InputTag>("genParticles"))
+  genParticleSrc_(iConfig.getParameter<edm::InputTag>("genParticles")),
+  qualityCutsPSet_(iConfig.getParameter<edm::ParameterSet>("qualityCuts"))
 {
+
+  edm::ParameterSet isolationQCuts = qualityCutsPSet_.getParameterSet("isolationQualityCuts");
+  qcuts_.reset(new reco::tau::RecoTauQualityCuts(isolationQCuts));
+  vertexAssociator_.reset(new reco::tau::RecoTauVertexAssociator(qualityCutsPSet_));
+  std::pair<edm::ParameterSet, edm::ParameterSet> puFactorizedIsoQCuts = reco::tau::factorizePUQCuts(isolationQCuts);
+  if ( iConfig.exists("deltaBetaPUTrackPtCutOverride") ) {
+    puFactorizedIsoQCuts.second.addParameter<double>("minTrackPt", iConfig.getParameter<double>("deltaBetaPUTrackPtCutOverride"));
+  } else {
+    puFactorizedIsoQCuts.second.addParameter<double>("minTrackPt", isolationQCuts.getParameter<double>("minGammaEt"));
+  }
+  pileupQcutsPUTrackSelection_.reset(new reco::tau::RecoTauQualityCuts(puFactorizedIsoQCuts.first));
+  pileupQcutsGeneralQCuts_.reset(new reco::tau::RecoTauQualityCuts(puFactorizedIsoQCuts.second));
+
+  pfCandSrc_ = iConfig.getParameter<edm::InputTag>("particleFlowSrc");
+
 }
+
 TauBlock::~TauBlock() { }
+
 void TauBlock::beginJob() 
 {
   // Get TTree pointer
@@ -528,6 +653,17 @@ void TauBlock::beginJob()
   tree->Branch("Tau", &cloneTau, 32000, 2);
   tree->Branch("nTau", &fnTau, "fnTau/I");
 }
+
+void TauBlock::beginEvent(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
+
+  // NB: The use of the PV in this context is necessitated by its use in
+  // applying quality cuts to the different objects in the isolation cone
+  // The vertex associator contains the logic to select the appropriate vertex
+  // We need to pass it the event so it can load the vertices.
+  vertexAssociator_->setEvent(iEvent);
+
+}
+
 void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) {
   // Reset the TClonesArray and the nObj variables
   cloneTau->Clear();
@@ -538,6 +674,8 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 
   edm::Handle<std::vector<pat::Tau> > taus;
   iEvent.getByLabel(_inputTag, taus);
+
+  this->beginEvent(iEvent, iSetup);
 
   edm::Handle<edm::View<pat::Muon> > muons;
   iEvent.getByLabel(muonSrc_,muons);
@@ -611,13 +749,13 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 		//AlgebraicVector3 pvRecoVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(pvGenVertex, u1, u2, u3);
 		//AlgebraicVector3 pvGenVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(pvRecoVertex, u1, u2, u3);
 
-		tauB->diffPVx = fabs(newVars[7]) - fabs(vtxPos[0]);
-		tauB->diffPVy = fabs(newVars[8]) - fabs(vtxPos[1]);
-		tauB->diffPVz = fabs(newVars[9]) - fabs(vtxPos[2]);
+		tauB->diffPVx = newVars[7] - vtxPos[0];
+		tauB->diffPVy = newVars[8] - vtxPos[1];
+		tauB->diffPVz = newVars[9] - vtxPos[2];
 
-		float resPVx = fabs(newVars[7]) - fabs(vtxPos[0]);
-		float resPVy = fabs(newVars[8]) - fabs(vtxPos[1]);
-		float resPVz = fabs(newVars[9]) - fabs(vtxPos[2]);
+		float resPVx = newVars[7] - vtxPos[0];
+		float resPVy = newVars[8] - vtxPos[1];
+		float resPVz = newVars[9] - vtxPos[2];
 		AlgebraicVector3 resPV = AlgebraicVector3(resPVx, resPVy, resPVz);
 
 		AlgebraicVector3 resPVLocal = SVfit_namespace::transformToLocalCoordinatesPos(resPV, u1, u2, u3);
@@ -626,7 +764,7 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 		tauB->diffPVyLocal = resPVLocal[1];
 		tauB->diffPVzLocal = resPVLocal[2];
 
-		//std::cout<<newVars[9]<<" "<<vtxPos[2]<<" "<<(fabs(newVars[9]) - fabs(vtxPos[2]))<<std::endl;
+		//std::cout<<newVars[9]<<" "<<vtxPos[2]<<" "<<(newVars[9] - vtxPos[2])<<std::endl;
 
 		if(newVars[1]){
 
@@ -636,13 +774,13 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 			//AlgebraicVector3 svRecoVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(svGenVertex, u1, u2, u3);
 			//AlgebraicVector3 svGenVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(svRecoVertex, u1, u2, u3);
 
-			tauB->diffSVx = fabs(newVars[10]) - fabs(vtxPos[3]);
-			tauB->diffSVy = fabs(newVars[11]) - fabs(vtxPos[4]);
-			tauB->diffSVz = fabs(newVars[12]) - fabs(vtxPos[5]);
+			tauB->diffSVx = newVars[10] - vtxPos[3];
+			tauB->diffSVy = newVars[11] - vtxPos[4];
+			tauB->diffSVz = newVars[12] - vtxPos[5];
 
-			float resSVx = fabs(newVars[10]) - fabs(vtxPos[3]);
-			float resSVy = fabs(newVars[11]) - fabs(vtxPos[4]);
-			float resSVz = fabs(newVars[12]) - fabs(vtxPos[5]);
+			float resSVx = newVars[10] - vtxPos[3];
+			float resSVy = newVars[11] - vtxPos[4];
+			float resSVz = newVars[12] - vtxPos[5];
 			AlgebraicVector3 resSV = AlgebraicVector3(resSVx, resSVy, resSVz);
 
 			AlgebraicVector3 resSVLocal = SVfit_namespace::transformToLocalCoordinatesPos(resSV, u1, u2, u3);
@@ -654,6 +792,22 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 		}
 
       }
+
+	reco::VertexRef pv = vertexAssociator_->associatedVertex(*(it->pfJetRef()));
+	if (pv.isNonnull() && it->leadPFChargedHadrCand().isNonnull() && TMath::Abs(pv->z() - it->vertex().z()) < 0.2 && it->tauID("decayModeFinding") > 0.5){
+      if (tb::isValidRef(it->leadPFChargedHadrCand()) && tb::isValidRef(it->leadPFChargedHadrCand()->trackRef())) {
+	reco::TrackRef trk = it->leadPFChargedHadrCand()->trackRef();
+		std::cout<<"ngul a mamet3 "<<pv->x()<<std::endl;
+		qcuts_->setPV(pv);
+		std::cout<<"ngul a mamet3"<<std::endl;
+		qcuts_->setLeadTrack(it->leadPFChargedHadrCand());
+		std::cout<<"ngul a mamet3"<<std::endl;
+		pileupQcutsGeneralQCuts_->setPV(pv);
+		pileupQcutsGeneralQCuts_->setLeadTrack(it->leadPFChargedHadrCand());
+		pileupQcutsPUTrackSelection_->setPV(pv);
+		pileupQcutsPUTrackSelection_->setLeadTrack(it->leadPFChargedHadrCand());
+		std::cout<<"ngul a mamet3"<<std::endl;
+		std::vector<double> isoQuantities = produceIso(it, pfCandHandle_, qcuts_, pileupQcutsPUTrackSelection_, pileupQcutsGeneralQCuts_, 0.5, 0.8, 0.3);}}
 
       // Store Tau variables
       tauB->eta    = it->eta();
