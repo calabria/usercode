@@ -5,5 +5,8 @@ tauBlock = cms.EDAnalyzer("TauBlock",
   patTauSrc       = cms.InputTag('tauVariables'),
   vertexSrc       = cms.InputTag('goodOfflinePrimaryVertices'),
   beamSpotCorr    = cms.bool(True),
-  offlineBeamSpot = cms.InputTag('offlineBeamSpot')
+  muonSrc         = cms.InputTag("selectedMuonsPt"),
+  srcBeamSpot     = cms.untracked.InputTag("offlineBeamSpot"),
+  offlineBeamSpot = cms.InputTag('offlineBeamSpot'),
+  genParticles    = cms.InputTag("genParticles")
 )

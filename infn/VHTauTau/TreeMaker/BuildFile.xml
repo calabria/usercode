@@ -29,6 +29,10 @@
 <use name="RecoTauTag/RecoTau" />
 <use name="RecoMET/METAlgorithms" />
 <use name="RecoMuon/MuonIsolation" />
+<use name="RecoVertex/KalmanVertexFit"/>
+<use name="RecoVertex/AdaptiveVertexFit"/>
+<use name="DataFormats/BeamSpot"/>
+<use name="RecoBTag/SecondaryVertex"/>
 <export>
   <lib name="1"/>
 </export>

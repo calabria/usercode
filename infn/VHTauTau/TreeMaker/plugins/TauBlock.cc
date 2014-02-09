@@ -18,6 +18,32 @@
 #include "VHTauTau/TreeMaker/plugins/TauBlock.h"
 #include "VHTauTau/TreeMaker/interface/Utility.h"
 
+#include "DataFormats/Candidate/interface/CandidateFwd.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "RecoVertex/KalmanVertexFit/interface/KalmanVertexFitter.h"
+#include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "RecoVertex/AdaptiveVertexFit/interface/AdaptiveVertexFitter.h"
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenRunInfoProduct.h"
+#include "DataFormats/HepMCCandidate/interface/GenParticle.h"
+#include "DataFormats/PatCandidates/interface/Muon.h"
+#include "DataFormats/PatCandidates/interface/Electron.h"
+#include "DataFormats/TauReco/interface/PFTauDecayMode.h"
+#include "DataFormats/Math/interface/deltaR.h"
+#include "DataFormats/Math/interface/deltaPhi.h"
+#include "DataFormats/Common/interface/Ref.h"
+
+#include "RecoBTag/SecondaryVertex/interface/SecondaryVertex.h"
+#include "RecoTauTag/RecoTau/interface/RecoTauVertexAssociator.h"
+
+using namespace reco;
+using namespace std;
+using namespace edm;
+
 namespace tb 
 {
   template<typename T>
@@ -26,12 +52,467 @@ namespace tb
     return ( (ref.isAvailable() || ref.isTransient()) && ref.isNonnull() );
   }
 }
+
+//-------------------------------------------------------------------------------
+ // auxiliary functions to compare two Tracks 
+
+
+bool tracksMatchByDeltaR(const reco::Track* trk1, const reco::Track* trk2)
+{
+  if ( reco::deltaR(*trk1, *trk2) < 1.e-2 && trk1->charge() == trk2->charge() ) return true;
+  else return false;
+}
+
+// auxiliary function to exclude tracks associated to tau lepton decay "leg"
+// from primary event vertex refit
+typedef std::map<const reco::Track*, reco::TransientTrack> TransientTrackMap;
+void removeTracks(TransientTrackMap& pvTracks_toRefit, const std::vector<reco::Track*> svTracks)
+{
+  for ( std::vector<reco::Track*>::const_iterator svTrack = svTracks.begin(); svTrack != svTracks.end(); ++svTrack ) {
+    
+    //--- remove track from list of tracks included in primary event vertex refit
+    //    if track matches by reference or in eta-phi
+    //    any of the tracks associated to tau lepton decay "leg"
+    for ( TransientTrackMap::iterator pvTrack = pvTracks_toRefit.begin(); pvTrack != pvTracks_toRefit.end(); ++pvTrack ) {
+      if ( tracksMatchByDeltaR(pvTrack->first, *svTrack) ) {
+	pvTracks_toRefit.erase(pvTrack);
+	break;
+      }
+    }
+  }
+}
+
+//-------------------------------------------------------------------------------
+
+double vertexSignificance(reco::Vertex& pv, reco::Vertex& sv, GlobalVector& direction){
+
+  return SecondaryVertex::computeDist3d(pv,sv,direction,true).significance();
+
+}
+
+//-------------------------------------------------------------------------------
+
+std::vector<double> GenSecondaryVertex(std::vector<pat::Tau>::const_iterator it, edm::Handle<reco::GenParticleCollection> genParticles){
+
+  std::vector<double> vtxCoord;
+
+  //int runNumber = iEvent.id().run();
+  double phiReco = it->phi();
+  double etaReco = it->eta();
+
+  if(genParticles.isValid()){
+
+  	for(reco::GenParticleCollection::const_iterator itg = genParticles->begin(); itg != genParticles->end(); ++itg ){
+
+		int id = itg->pdgId();
+		int status = itg->status();
+		//std::cout<<"Id = "<<id<<std::endl;
+		int nDaughters = itg->numberOfDaughters();
+		double phiGen = itg->phi();
+		double etaGen = itg->eta();
+
+		//std::cout<<"id "<<id<<" "<<phiGen<<" "<<etaGen<<std::endl;
+
+		if(fabs(id) == 23 && status == 3){
+
+			vtxCoord.push_back(itg->vx()); 
+			vtxCoord.push_back(itg->vy());
+			vtxCoord.push_back(itg->vz());
+
+		}
+
+		int numNeutrinoTau = 0;
+		int numNeutrinos = 0;
+
+		if(abs(id) == 15){
+
+			for ( int k = 0; k < nDaughters; k++ ){
+
+				const reco::Candidate * DaughterTau = itg->daughter(k);
+
+				int idDaughterTau = DaughterTau->pdgId();
+				//std::cout<<"idDaughterTau = "<<idDaughterTau<<std::endl;
+				if(fabs(idDaughterTau) == 16) ++numNeutrinoTau;
+				if(fabs(idDaughterTau) == 12 || fabs(idDaughterTau) == 14) ++numNeutrinos;
+
+			}
+
+		}
+		else{
+
+			numNeutrinoTau = 1;
+			numNeutrinos = 0;
+
+		}
+
+		if(abs(id) == 15 && numNeutrinoTau == 1 && numNeutrinos == 0){
+
+			//std::cout<<"Tutto "<<phiGen<<" "<<etaGen<<" "<<etaReco<<" "<<phiReco<<std::endl;
+
+			double dR = deltaR(etaGen, phiGen, etaReco, phiReco);
+
+			if(dR <= 0.5 && numNeutrinoTau == 1 && numNeutrinos == 0){
+
+				const reco::Candidate * DaughterTau = itg->daughter(0);
+
+				vtxCoord.push_back(DaughterTau->vx()); 
+				vtxCoord.push_back(DaughterTau->vy());
+				vtxCoord.push_back(DaughterTau->vz());
+				//std::cout<<"Id = "<<id<<" dR = "<<dR<<" numNeutrinoTau = "<<numNeutrinoTau<<std::endl;
+				//std::cout<<" numNeutrinos = "<<numNeutrinos<<std::endl;
+
+			}
+
+		}
+
+	}
+
+  }
+
+  return vtxCoord;
+
+}
+
+//-------------------------------------------------------------------------------
+
+std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm::Handle<edm::View<pat::Muon> > muons, edm::Handle<reco::VertexCollection> pvHandle, edm::Handle<reco::BeamSpot> beamSpotHandle, edm::ESHandle<TransientTrackBuilder> trackBuilderHandle){
+
+   std::vector<double> newVars;
+   VertexState beamSpotState_;
+   bool beamSpotIsValid_;
+   const reco::BeamSpot*  beamSpot_ = beamSpotHandle.product();
+
+   if ( beamSpot_ ) {
+     beamSpotState_ = VertexState(*beamSpot_);    
+     beamSpotIsValid_ = (beamSpotState_.error().cxx() > 0. &&
+			 beamSpotState_.error().cyy() > 0. &&
+			 beamSpotState_.error().czz() > 0.);
+   } else {
+     edm::LogError ("NSVfitEventVertexRefitter::beginEvent")
+       << " Failed to access BeamSpot !!";
+     beamSpotIsValid_ = false;
+   }
+   
+   const TransientTrackBuilder* trackBuilder_;
+   trackBuilder_ = trackBuilderHandle.product();
+
+   std::vector<reco::TransientTrack> tracks;
+
+   //if (it->pfJetRef().isAvailable() && it->pfJetRef().isNonnull()) std::cout<<"pfJet: "<<it->pfJetRef()->pt()<<std::endl;
+   //if (it->pfJetRef().isAvailable() && it->pfJetRef().isNonnull()) std::cout<<"pfJet: "<<it->pfJetRef()->phi()<<std::endl;
+   //if (it->pfJetRef().isAvailable() && it->pfJetRef().isNonnull()) std::cout<<"pfJet: "<<it->pfJetRef()->eta()<<std::endl;
+
+   const reco::PFCandidateRefVector& signalPFChargedHadrCandidates = it->signalPFChargedHadrCands();
+
+   double SecVtx_x = -9, SecVtx_y = -9, SecVtx_z = -9;
+   double PV_x = -9, PV_y = -9, PV_z = -9;
+   bool isSV = false;
+
+   int isOneProng = 9999;
+   int isThreeProng = 9999;
+   double IPxyLead = 9999;
+   double sigma_IPxyLead = 9999;
+   double IPxySigLead = 9999;
+   double IPzLead = 9999;
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona IP
+
+   if((it->signalPFGammaCands().size() > 0 || it->signalPFGammaCands().size() == 0) && it->signalPFChargedHadrCands().size() == 1){
+
+ 	isOneProng = 1;
+	isThreeProng = 0;
+
+   }
+   else if(signalPFChargedHadrCandidates.size() == 3){
+
+ 	isOneProng = 0;
+	isThreeProng = 1;
+
+   }
+   else{
+
+ 	isOneProng = 0;
+	isThreeProng = 0;
+   }
+
+   std::vector<reco::TransientTrack> pvTracks_original;
+   TransientTrackMap pvTrackMap_refit;
+       
+   for ( reco::Vertex::trackRef_iterator pvTrack = (*pvHandle)[0].tracks_begin(); pvTrack != (*pvHandle)[0].tracks_end(); ++pvTrack ) {
+	 
+	reco::TransientTrack pvTrack_transient = trackBuilder_->build(pvTrack->get());
+	pvTracks_original.push_back(pvTrack_transient);
+	pvTrackMap_refit.insert(std::make_pair(pvTrack->get(), pvTrack_transient)); //tracce associate al PV
+	 
+   }
+
+   if (isOneProng){
+     
+     	std::vector<reco::Track*> svTracks;
+     
+     	if(it->signalPFChargedHadrCands()[0]->trackRef().isNonnull()){
+       
+       		reco::Track trk_tmp0 = *(it->signalPFChargedHadrCands()[0]->trackRef());
+       		reco::Track* ftrk_tmp0 = &trk_tmp0; 
+       		svTracks.push_back(ftrk_tmp0);
+
+	}
+       
+     
+       	for(edm::View<pat::Muon>::const_iterator patMu=muons->begin(); patMu!=muons->end(); ++patMu){
+	 
+	 	if(patMu->track().isNonnull()){
+	 
+	   		reco::Track trk_tmp_mu = *(patMu->track());
+	   		reco::Track* ftrk_tmp_mu = &trk_tmp_mu; 
+	   		svTracks.push_back(ftrk_tmp_mu);
+
+		}
+       	}
+
+   	removeTracks(pvTrackMap_refit, svTracks); //rimuovo dalla mappa gli elementi in cui le tracce associate al PV coincidono con quelle associate al SV
+
+	    ////////////////definisco un vettore con le tracce del PV da cui ho tolto le tracce del SV///////////////////////////////////////////
+
+   	std::vector<reco::TransientTrack> pvTracks_refit;
+   	for ( TransientTrackMap::iterator pvTrack = pvTrackMap_refit.begin();  pvTrack != pvTrackMap_refit.end(); ++pvTrack ) {
+
+		pvTracks_refit.push_back(pvTrack->second);
+
+   	}
+
+
+	AdaptiveVertexFitter adf;
+	TransientVertex pvVtx;
+
+	if ( pvTracks_refit.size() >= 2) {
+	      
+		if (  beamSpotIsValid_ )  pvVtx = adf.vertex(pvTracks_refit, *beamSpot_);
+		else pvVtx = adf.vertex(pvTracks_refit);
+
+	}
+	else{
+
+		if ( beamSpotIsValid_ ) pvVtx = adf.vertex(pvTracks_original, *beamSpot_);
+		else pvVtx = adf.vertex(pvTracks_original);
+
+	}
+
+	GlobalPoint PV =  pvVtx.position();
+	PV_x = PV.x();
+	PV_y = PV.y();
+	PV_z = PV.z();
+	/*std::cout<<"sono nel treeMaker, 1prong PVRef PV_X="<< PV_x<<std::endl; 
+	std::cout<<"sono nel treeMaker, 1prong PVRef PV_Y="<< PV_y<<std::endl; 
+	std::cout<<"sono nel treeMaker, 1prong PVRef PV_Z="<< PV_z<<std::endl;*/
+
+	reco::Vertex::Point pvPoint = reco::Vertex::Point(pvVtx.position());
+	    
+	//std::cout<<"sono nel treeMaker, impact parameter wrt PVREFIT "<<it->leadPFChargedHadrCand()->trackRef()->dxy(pvPoint)<<"  err    "<<it->leadPFChargedHadrCand()->trackRef()->d0Error()<<std::endl;
+
+	IPxyLead = it->leadPFChargedHadrCand()->trackRef()->dxy(pvPoint);
+	sigma_IPxyLead = it->leadPFChargedHadrCand()->trackRef()->d0Error();
+	IPxySigLead = IPxyLead/sigma_IPxyLead;
+	IPzLead = it->leadPFChargedHadrCand()->trackRef()->dz(pvPoint);
+
+   }
+   
+////////////////////////////////////////////////////////////////////////////////////////////////////////////// Zona SV
+
+   reco::TransientTrack transtrack0; 
+   reco::TransientTrack transtrack1; 
+   reco::TransientTrack transtrack2; 
+
+   double distSV_PVRef = -999;
+   double flightPathSignificance = -999;
+    
+   if(isThreeProng){
+
+	  if(it->signalPFChargedHadrCands()[0]->trackRef().isNonnull()) transtrack0 = trackBuilderHandle->build(it->signalPFChargedHadrCands()[0]->trackRef());
+	  if(it->signalPFChargedHadrCands()[1]->trackRef().isNonnull()) transtrack1 = trackBuilderHandle->build(it->signalPFChargedHadrCands()[1]->trackRef());
+	  if(it->signalPFChargedHadrCands()[2]->trackRef().isNonnull()) transtrack2 = trackBuilderHandle->build(it->signalPFChargedHadrCands()[2]->trackRef());
+	  if (transtrack0.isValid()) tracks.push_back(transtrack0);
+	  if (transtrack1.isValid()) tracks.push_back(transtrack1);
+	  if (transtrack2.isValid()) tracks.push_back(transtrack2);
+	  
+	  float vtxChi2 = -1;
+	  float vtxNDOF = -1;
+
+	  if (tracks.size() > 1) {
+
+	    	KalmanVertexFitter kvf(true);
+	    	TransientVertex vtx = kvf.vertex(tracks);
+	    	vtxChi2 = vtx.totalChiSquared();
+	    	vtxNDOF = vtx.degreesOfFreedom();
+	    
+	    	//std::cout<<" vtx chi2="<<vtxChi2<<std::endl;
+	    	//std::cout<<" vtx NDOF="<<vtxNDOF<<std::endl;
+	    	//std::cout<<" vtx pos="<<vtx.position()<<std::endl;
+
+	    	GlobalPoint SecVtx = vtx.position();
+	    	SecVtx_x =  SecVtx.x();
+	    	SecVtx_y =  SecVtx.y();
+	    	SecVtx_z =  SecVtx.z();
+
+		/*std::cout<<"3 prong SV_X="<< SecVtx_x<<std::endl; 
+		std::cout<<"3 prong SV_Y="<< SecVtx_y<<std::endl; 
+		std::cout<<"3 prong SV_Z="<< SecVtx_z<<std::endl;*/
+	 
+	    	///////////////////////////metto le tracce del 3 prong + la traccia del mu in un vettore//////////////////////////////////////////////////
+
+	    	std::vector<reco::Track*> svTracks;
+	    	bool isValidTauTrack = false;
+	    	if((it->signalPFChargedHadrCands()[0]->trackRef().isNonnull()) && (it->signalPFChargedHadrCands()[1]->trackRef().isNonnull()) && (it->signalPFChargedHadrCands()[2]->trackRef().isNonnull()) ) isValidTauTrack=true;
+
+	    	if(isValidTauTrack){
+
+	    		reco::Track trk_tmp0 = *(it->signalPFChargedHadrCands()[0]->trackRef());
+	    		reco::Track trk_tmp1 = *(it->signalPFChargedHadrCands()[1]->trackRef());
+	    		reco::Track trk_tmp2 = *(it->signalPFChargedHadrCands()[2]->trackRef());
+	    		reco::Track* ftrk_tmp0 = &trk_tmp0; 
+	    		reco::Track* ftrk_tmp1 = &trk_tmp1; 
+	    		reco::Track* ftrk_tmp2 = &trk_tmp2; 
+	    		svTracks.push_back(ftrk_tmp0);
+	    		svTracks.push_back(ftrk_tmp1);
+	    		svTracks.push_back(ftrk_tmp2);
+
+	    	}
+
+	    	for(edm::View<pat::Muon>::const_iterator patMu=muons->begin(); patMu!=muons->end(); ++patMu){
+
+			if(patMu->track().isNonnull()){
+
+		   		reco::Track trk_tmp_mu = *(patMu->track());
+		   		reco::Track* ftrk_tmp_mu = &trk_tmp_mu; 
+		   		svTracks.push_back(ftrk_tmp_mu);
+
+			}
+		 
+           	}
+	    
+	    	//std::cout<<" puntatore  traccia "<<ftrk_tmp0<<"  =  "<<&trk_tmp0<<"  pt   "<<(*svTracks[0]).pt()<<std::endl;
+
+	    	/*int idx=0;
+	     	for ( std::vector<reco::Track*>::const_iterator svTrack = svTracks.begin();  svTrack != svTracks.end(); ++svTrack ) {
+	      		std::cout << "Track #" << idx << ": Pt = " << (*svTrack)->pt() << "," 
+			<< " eta = " << (*svTrack)->eta() << ", phi = " << (*svTrack)->phi() 
+			<< " (charge = " << (*svTrack)->charge() << ", chi2 = " << (*svTrack)->normalizedChi2() << ")" << std::endl;
+	      	      	++idx;
+		}*/
+
+	    	isSV = true;
+	    	removeTracks(pvTrackMap_refit, svTracks); //rimuovo dalla mappa gli elementi in cui le tracce associate al PV coincidono con quelle associate al SV
+
+	    	////////////////definisco un vettore con le tracce del PV da cui ho tolto le tracce del SV///////////////////////////////////////////
+
+	    	std::vector<reco::TransientTrack> pvTracks_refit;
+	    	for ( TransientTrackMap::iterator pvTrack = pvTrackMap_refit.begin();  pvTrack != pvTrackMap_refit.end(); ++pvTrack ) {
+
+	      		pvTracks_refit.push_back(pvTrack->second);
+
+	    	}
+
+	    	//////////////////////////////////////////Refit del PV//////////////////////////////////////////////////////////////////////////////
+
+	    	AdaptiveVertexFitter adf;
+	    	TransientVertex pvVtx;
+
+	    	if ( pvTracks_refit.size() >= 2) {
+	      
+	      		if (  beamSpotIsValid_ )  pvVtx = adf.vertex(pvTracks_refit, *beamSpot_);
+	      		else pvVtx = adf.vertex(pvTracks_refit);
+
+	    	}
+	    	else{
+
+	      		if ( beamSpotIsValid_ ) pvVtx = adf.vertex(pvTracks_original, *beamSpot_);
+	      		else pvVtx = adf.vertex(pvTracks_original);
+
+	    	}
+
+	    	GlobalPoint PV =  pvVtx.position();
+	    	PV_x = PV.x();
+	    	PV_y = PV.y();
+		PV_z = PV.z();
+		/*std::cout<<"3 prong PV_X="<< PV_x<<std::endl; 
+		std::cout<<"3 prong PV_Y="<< PV_y<<std::endl; 
+		std::cout<<"3 prong PV_Z="<< PV_z<<std::endl;*/
+
+    		if(vtx.isValid()){
+
+      			GlobalVector tauDir(it->px(), it->py(), it->pz());
+      			reco::Vertex secVer = vtx;
+      			reco::Vertex primaryVertexNonConst = pvVtx;
+      			flightPathSignificance = vertexSignificance(primaryVertexNonConst,secVer,tauDir);
+			std::cout<<"flightPathSignificance "<<flightPathSignificance<<std::endl;
+
+    		}
+
+		distSV_PVRef = TMath::Sqrt((PV_x-SecVtx_x)*(PV_x-SecVtx_x) + (PV_y-SecVtx_y)*(PV_y-SecVtx_y) + (PV_z-SecVtx_z)*(PV_z-SecVtx_z)); 
+		//std::cout<<"  ***dist pvRefit-sv***  "<<distSV_PVRef<<std::endl;
+
+		reco::Vertex::Point pvPoint = reco::Vertex::Point(pvVtx.position());
+	    
+		//std::cout<<"sono nel treeMaker, impact parameter wrt PVREFIT "<<it->leadPFChargedHadrCand()->trackRef()->dxy(pvPoint)<<"  err    "<<it->leadPFChargedHadrCand()->trackRef()->d0Error()<<std::endl;
+
+		IPxyLead = it->leadPFChargedHadrCand()->trackRef()->dxy(pvPoint);
+		sigma_IPxyLead = it->leadPFChargedHadrCand()->trackRef()->d0Error();
+		IPxySigLead = IPxyLead/sigma_IPxyLead;
+		IPzLead = it->leadPFChargedHadrCand()->trackRef()->dz(pvPoint);
+
+	  }
+
+   }//is 3 prong
+
+   newVars.push_back(isOneProng);
+   newVars.push_back(isThreeProng);
+   newVars.push_back(IPxyLead);
+   newVars.push_back(sigma_IPxyLead);
+   newVars.push_back(IPxySigLead);
+   newVars.push_back(IPzLead);
+   newVars.push_back(distSV_PVRef);
+   newVars.push_back(PV_x);
+   newVars.push_back(PV_y);
+   newVars.push_back(PV_z);
+   newVars.push_back(SecVtx_x);
+   newVars.push_back(SecVtx_y);
+   newVars.push_back(SecVtx_z);
+   newVars.push_back(flightPathSignificance);
+	
+   if(isSV){
+
+	//std::cout<<" sec vtx posX="<<SecVtx_x<<std::endl;
+	if (!pvHandle->empty()) {
+
+		const reco::Vertex &pv = (*pvHandle)[0];
+		float pvx = pv.x();
+		float pvy = pv.y();
+		float pvz = pv.z();
+		//std::cout<<" PV_X="<<pv.x()<<std::endl; 
+		// std::cout<<" PV_Y="<<pv.y()<<std::endl; 
+		//std::cout<<" PV_Z="<<pv.z()<<std::endl; 
+		float distPS = TMath::Sqrt((pvx-SecVtx_x)*(pvx-SecVtx_x) + (pvy-SecVtx_y)*(pvy-SecVtx_y) + (pvz-SecVtx_z)*(pvz-SecVtx_z));
+		//std::cout<<"  ***dist pv-sv***  "<< distPS<<std::endl;
+
+	}
+
+   }
+	 
+   return newVars;
+
+}
+
+//-------------------------------------------------------------------------------
+
 TauBlock::TauBlock(const edm::ParameterSet& iConfig) :
   _verbosity(iConfig.getParameter<int>("verbosity")),
   _inputTag(iConfig.getParameter<edm::InputTag>("patTauSrc")),
   _vtxInputTag(iConfig.getParameter<edm::InputTag>("vertexSrc")),
+  muonSrc_(iConfig.getParameter<edm::InputTag>("muonSrc")),
   _beamSpotInputTag(iConfig.getParameter<edm::InputTag>("offlineBeamSpot")),
-  _beamSpotCorr(iConfig.getParameter<bool>("beamSpotCorr"))
+  _beamSpotCorr(iConfig.getParameter<bool>("beamSpotCorr")),
+  srcBeamSpot_(iConfig.getParameter<edm::InputTag>("srcBeamSpot")),
+  genParticleSrc_(iConfig.getParameter<edm::InputTag>("genParticles"))
 {
 }
 TauBlock::~TauBlock() { }
@@ -48,8 +529,23 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
   cloneTau->Clear();
   fnTau = 0;
 
+  edm::Handle<reco::VertexCollection> primaryVertices;
+  iEvent.getByLabel(_vtxInputTag, primaryVertices);
+
   edm::Handle<std::vector<pat::Tau> > taus;
   iEvent.getByLabel(_inputTag, taus);
+
+  edm::Handle<edm::View<pat::Muon> > muons;
+  iEvent.getByLabel(muonSrc_,muons);
+
+  edm::Handle<reco::GenParticleCollection> genParticles;
+  iEvent.getByLabel(genParticleSrc_, genParticles);
+
+  edm::Handle<reco::BeamSpot> beamSpotHandle;
+  iEvent.getByLabel(srcBeamSpot_, beamSpotHandle);
+
+  edm::ESHandle<TransientTrackBuilder> trackBuilderHandle;
+  iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilderHandle);
   
   if (taus.isValid()) {
     edm::Handle<reco::VertexCollection> primaryVertices;
@@ -68,6 +564,42 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 	break;
       }
       tauB = new ((*cloneTau)[fnTau++]) vhtm::Tau();
+
+      //New variables
+      vdouble newVars = produceNewVars(it, muons, primaryVertices, beamSpotHandle, trackBuilderHandle);
+      tauB->isOneProng = newVars[0];
+      tauB->isThreeProng = newVars[1];
+      tauB->IPxyLead = newVars[2];
+      tauB->sigma_IPxyLead = newVars[3];
+      tauB->IPxySigLead = newVars[4];
+      tauB->IPzLead = newVars[5];
+      tauB->distSV_PVRef = newVars[6];
+      tauB->distSV_PVSig = newVars[13];
+
+      std::vector<double> vtxPos; 
+      if(iEvent.id().run() == 1){
+
+		vtxPos = GenSecondaryVertex(it, genParticles);
+   		std::cout<<"GenPrimVtx "<<vtxPos[0]<<" "<<vtxPos[1]<<" "<<vtxPos[2]<<std::endl;
+   		std::cout<<"GenSecVtx "<<vtxPos[3]<<" "<<vtxPos[4]<<" "<<vtxPos[5]<<std::endl;
+      		std::cout<<"RecoPrimVtx "<<newVars[7]<<" "<<newVars[8]<<" "<<newVars[9]<<std::endl;
+      		std::cout<<"RecoSecVtx "<<newVars[10]<<" "<<newVars[11]<<" "<<newVars[12]<<std::endl;
+
+		tauB->diffPVx = fabs(newVars[7]) - fabs(vtxPos[0]);
+		tauB->diffPVy = fabs(newVars[8]) - fabs(vtxPos[1]);
+		tauB->diffPVz = fabs(newVars[9]) - fabs(vtxPos[2]);
+
+		//std::cout<<newVars[9]<<" "<<vtxPos[2]<<" "<<(fabs(newVars[9]) - fabs(vtxPos[2]))<<std::endl;
+
+		if(newVars[1]){
+
+			tauB->diffSVx = fabs(newVars[10]) - fabs(vtxPos[3]);
+			tauB->diffSVy = fabs(newVars[11]) - fabs(vtxPos[4]);
+			tauB->diffSVz = fabs(newVars[12]) - fabs(vtxPos[5]);
+	
+		}
+
+      }
 
       // Store Tau variables
       tauB->eta    = it->eta();

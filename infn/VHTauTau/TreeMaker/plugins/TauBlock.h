@@ -14,6 +14,23 @@
 
 #include "VHTauTau/TreeMaker/interface/PhysicsObjects.h"
 
+#include "DataFormats/Candidate/interface/CandidateFwd.h"
+#include "DataFormats/Candidate/interface/Candidate.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
+#include "RecoVertex/KalmanVertexFit/interface/KalmanVertexFitter.h"
+#include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
+#include "TrackingTools/TransientTrack/interface/TransientTrack.h"
+#include "TrackingTools/Records/interface/TransientTrackRecord.h"
+#include "RecoVertex/AdaptiveVertexFit/interface/AdaptiveVertexFitter.h"
+#include "SimDataFormats/GeneratorProducts/interface/HepMCProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h"
+#include "SimDataFormats/GeneratorProducts/interface/GenRunInfoProduct.h"
+#include "DataFormats/PatCandidates/interface/Muon.h"
+#include "DataFormats/PatCandidates/interface/Electron.h"
+#include "DataFormats/TauReco/interface/PFTauDecayMode.h"
+#include "DataFormats/Math/interface/deltaR.h"
+#include "DataFormats/Common/interface/Ref.h"
+
 class TClonesArray;
 class Tau;
 
@@ -41,8 +58,15 @@ private:
   int _verbosity;
   edm::InputTag _inputTag;
   edm::InputTag _vtxInputTag;
+  edm::InputTag muonSrc_;
+  edm::InputTag srcBeamSpot_;
   edm::InputTag _beamSpotInputTag;
   bool _beamSpotCorr;
+  edm::InputTag genParticleSrc_;
+
+  typedef std::vector<double> vdouble;
+
+  const TransientTrackBuilder* trackBuilder_;
 
   vhtm::Tau* tauB;
 };

@@ -263,7 +263,24 @@ vhtm::Tau::Tau():
   etaphiMoment(-999),
   vx(-999), vy(-999), vz(-999),
   zvertex(-999), ltsipt(-999),
-  selbit(0) 
+  selbit(0)
+  //
+  isOneProng(9999),
+  isThreeProng(9999),
+  IPxyLead(9999),
+  sigma_IPxyLead(9999),
+  IPxySigLead(9999), //Significanza IP/sigma/PI
+  IPzLead(9999),
+  distSV_PVRef(-999),
+  distSV_PVSig(-999),
+
+  diffPVx(-9),
+  diffPVy(-9),
+  diffPVz(-9),
+
+  diffSVx(-9),
+  diffSVy(-9),
+  diffSVz(-9)
 {
   for (int i = 0; i < kMaxPFChargedCand; ++i) {
     sigChHadCandPt[i] = sigChHadCandEta[i] = sigChHadCandPhi[i] = 

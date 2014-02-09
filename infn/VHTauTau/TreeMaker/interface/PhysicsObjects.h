@@ -377,6 +377,24 @@ namespace vhtm {
     double ltsipt;
   
        int selbit;
+
+    //Variabili user Float 
+       int isOneProng;
+       int isThreeProng;
+     float IPxyLead;
+     float sigma_IPxyLead;
+     float IPxySigLead; //Significanza IP/sigma/PI
+     float IPzLead;
+     float distSV_PVRef;
+     float distSV_PVSig;
+
+     float diffPVx;
+     float diffPVy;
+     float diffPVz;
+
+     float diffSVx;
+     float diffSVy;
+     float diffSVz;
   
     ClassDef(Tau, 2) 
   };
