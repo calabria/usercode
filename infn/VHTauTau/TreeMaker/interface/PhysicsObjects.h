@@ -396,7 +396,7 @@ namespace vhtm {
      float diffSVy;
      float diffSVz;
   
-    ClassDef(Tau, 2) 
+    ClassDef(Tau, 3) 
   };
   class Muon: public TObject {
   public:

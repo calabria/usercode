@@ -21,7 +21,8 @@
   <class name="vhtm::MET" ClassVersion="1">
     <version ClassVersion="1" checksum="1036931265" />
   </class>
-  <class name="vhtm::Tau" ClassVersion="2">
+  <class name="vhtm::Tau" ClassVersion="3">
+    <version ClassVersion="3" checksum="1314196822" />
     <version ClassVersion="2" checksum="4191986825" />
     <version ClassVersion="1" checksum="2014445924" />
   </class>

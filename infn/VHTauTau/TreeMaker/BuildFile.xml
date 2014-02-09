@@ -22,9 +22,7 @@
 <use name="PhysicsTools/IsolationAlgos" />
 <use name="PhysicsTools/Utilities" />
 <use name="EGamma/EGammaAnalysisTools" />
-<use name="Muon/MuonAnalysisTools" />
 <use name="MuonAnalysis/MomentumScaleCalibration" />
-<use name="HiggsAnalysis/HiggsToWW2Leptons" />
 <use name="RecoTauTag/TauTagTools" />
 <use name="RecoTauTag/RecoTau" />
 <use name="RecoMET/METAlgorithms" />

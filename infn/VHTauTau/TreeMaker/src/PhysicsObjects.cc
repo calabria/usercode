@@ -263,7 +263,7 @@ vhtm::Tau::Tau():
   etaphiMoment(-999),
   vx(-999), vy(-999), vz(-999),
   zvertex(-999), ltsipt(-999),
-  selbit(0)
+  selbit(0),
   //
   isOneProng(9999),
   isThreeProng(9999),
