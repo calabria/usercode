@@ -39,6 +39,7 @@
 
 #include "RecoBTag/SecondaryVertex/interface/SecondaryVertex.h"
 #include "RecoTauTag/RecoTau/interface/RecoTauVertexAssociator.h"
+#include "TauAnalysis/CandidateTools/interface/svFitAuxFunctions.h"
 
 using namespace reco;
 using namespace std;
@@ -158,6 +159,9 @@ std::vector<double> GenSecondaryVertex(std::vector<pat::Tau>::const_iterator it,
 				vtxCoord.push_back(DaughterTau->vx()); 
 				vtxCoord.push_back(DaughterTau->vy());
 				vtxCoord.push_back(DaughterTau->vz());
+				vtxCoord.push_back(itg->px()); 
+				vtxCoord.push_back(itg->py());
+				vtxCoord.push_back(itg->pz());
 				//std::cout<<"Id = "<<id<<" dR = "<<dR<<" numNeutrinoTau = "<<numNeutrinoTau<<std::endl;
 				//std::cout<<" numNeutrinos = "<<numNeutrinos<<std::endl;
 
@@ -576,6 +580,18 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
       tauB->distSV_PVRef = newVars[6];
       tauB->distSV_PVSig = newVars[13];
 
+      AlgebraicVector3 u1 = AlgebraicVector3(1., 0., 0.);
+      AlgebraicVector3 u2 = AlgebraicVector3(0., 1., 0.);
+      AlgebraicVector3 u3 = AlgebraicVector3(0., 0., 1.);
+      //float tauPx = it->px();
+      //float tauPy = it->py();
+      //float tauPz = it->pz();
+
+      //AlgebraicVector3 pvRecoVertex;
+      //AlgebraicVector3 svRecoVertex;
+      //AlgebraicVector3 pvGenVertex;
+      //AlgebraicVector3 svGenVertex;
+
       std::vector<double> vtxPos; 
       if(iEvent.id().run() == 1){
 
@@ -585,17 +601,55 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
       		std::cout<<"RecoPrimVtx "<<newVars[7]<<" "<<newVars[8]<<" "<<newVars[9]<<std::endl;
       		std::cout<<"RecoSecVtx "<<newVars[10]<<" "<<newVars[11]<<" "<<newVars[12]<<std::endl;
 
+      		AlgebraicVector3 taudir = AlgebraicVector3(vtxPos[6], vtxPos[7], vtxPos[8]);
+
+      		SVfit_namespace::compLocalCoordinates(taudir, u1, u2, u3);
+
+		//pvGenVertex = AlgebraicVector3(newVars[0], newVars[1], newVars[2]);
+		//pvRecoVertex = AlgebraicVector3(newVars[7], newVars[8], newVars[9]);
+
+		//AlgebraicVector3 pvRecoVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(pvGenVertex, u1, u2, u3);
+		//AlgebraicVector3 pvGenVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(pvRecoVertex, u1, u2, u3);
+
 		tauB->diffPVx = fabs(newVars[7]) - fabs(vtxPos[0]);
 		tauB->diffPVy = fabs(newVars[8]) - fabs(vtxPos[1]);
 		tauB->diffPVz = fabs(newVars[9]) - fabs(vtxPos[2]);
+
+		float resPVx = fabs(newVars[7]) - fabs(vtxPos[0]);
+		float resPVy = fabs(newVars[8]) - fabs(vtxPos[1]);
+		float resPVz = fabs(newVars[9]) - fabs(vtxPos[2]);
+		AlgebraicVector3 resPV = AlgebraicVector3(resPVx, resPVy, resPVz);
+
+		AlgebraicVector3 resPVLocal = SVfit_namespace::transformToLocalCoordinatesPos(resPV, u1, u2, u3);
+
+		tauB->diffPVxLocal = resPVLocal[0];
+		tauB->diffPVyLocal = resPVLocal[1];
+		tauB->diffPVzLocal = resPVLocal[2];
 
 		//std::cout<<newVars[9]<<" "<<vtxPos[2]<<" "<<(fabs(newVars[9]) - fabs(vtxPos[2]))<<std::endl;
 
 		if(newVars[1]){
 
+			//svGenVertex = AlgebraicVector3(newVars[3], newVars[4], newVars[5]);
+			//svRecoVertex = AlgebraicVector3(newVars[10], newVars[11], newVars[12]);
+
+			//AlgebraicVector3 svRecoVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(svGenVertex, u1, u2, u3);
+			//AlgebraicVector3 svGenVertexLocal = SVfit_namespace::transformToLocalCoordinatesPos(svRecoVertex, u1, u2, u3);
+
 			tauB->diffSVx = fabs(newVars[10]) - fabs(vtxPos[3]);
 			tauB->diffSVy = fabs(newVars[11]) - fabs(vtxPos[4]);
 			tauB->diffSVz = fabs(newVars[12]) - fabs(vtxPos[5]);
+
+			float resSVx = fabs(newVars[10]) - fabs(vtxPos[3]);
+			float resSVy = fabs(newVars[11]) - fabs(vtxPos[4]);
+			float resSVz = fabs(newVars[12]) - fabs(vtxPos[5]);
+			AlgebraicVector3 resSV = AlgebraicVector3(resSVx, resSVy, resSVz);
+
+			AlgebraicVector3 resSVLocal = SVfit_namespace::transformToLocalCoordinatesPos(resSV, u1, u2, u3);
+
+			tauB->diffSVxLocal = resSVLocal[0];
+			tauB->diffSVyLocal = resSVLocal[1];
+			tauB->diffSVzLocal = resSVLocal[2];
 	
 		}
 
