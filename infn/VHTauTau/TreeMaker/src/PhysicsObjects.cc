@@ -280,7 +280,15 @@ vhtm::Tau::Tau():
 
   diffSVx(-9),
   diffSVy(-9),
-  diffSVz(-9)
+  diffSVz(-9),
+
+  diffPVxLocal(-9),
+  diffPVyLocal(-9),
+  diffPVzLocal(-9),
+
+  diffSVxLocal(-9),
+  diffSVyLocal(-9),
+  diffSVzLocal(-9)
 {
   for (int i = 0; i < kMaxPFChargedCand; ++i) {
     sigChHadCandPt[i] = sigChHadCandEta[i] = sigChHadCandPhi[i] = 

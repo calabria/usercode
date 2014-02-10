@@ -215,7 +215,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 
    double SecVtx_x = -9, SecVtx_y = -9, SecVtx_z = -9;
    double PV_x = -9, PV_y = -9, PV_z = -9;
-   bool isSV = false;
+   //bool isSV = false;
 
    int isOneProng = 9999;
    int isThreeProng = 9999;
@@ -344,15 +344,15 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 	  if (transtrack1.isValid()) tracks.push_back(transtrack1);
 	  if (transtrack2.isValid()) tracks.push_back(transtrack2);
 	  
-	  float vtxChi2 = -1;
-	  float vtxNDOF = -1;
+	  //float vtxChi2 = -1;
+	  //float vtxNDOF = -1;
 
 	  if (tracks.size() > 1) {
 
 	    	KalmanVertexFitter kvf(true);
 	    	TransientVertex vtx = kvf.vertex(tracks);
-	    	vtxChi2 = vtx.totalChiSquared();
-	    	vtxNDOF = vtx.degreesOfFreedom();
+	    	//vtxChi2 = vtx.totalChiSquared();
+	    	//vtxNDOF = vtx.degreesOfFreedom();
 	    
 	    	//std::cout<<" vtx chi2="<<vtxChi2<<std::endl;
 	    	//std::cout<<" vtx NDOF="<<vtxNDOF<<std::endl;
@@ -409,7 +409,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 	      	      	++idx;
 		}*/
 
-	    	isSV = true;
+	    	//isSV = true;
 	    	removeTracks(pvTrackMap_refit, svTracks); //rimuovo dalla mappa gli elementi in cui le tracce associate al PV coincidono con quelle associate al SV
 
 	    	////////////////definisco un vettore con le tracce del PV da cui ho tolto le tracce del SV///////////////////////////////////////////
@@ -488,7 +488,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
    newVars.push_back(SecVtx_z);
    newVars.push_back(flightPathSignificance);
 	
-   if(isSV){
+   /*if(isSV){
 
 	//std::cout<<" sec vtx posX="<<SecVtx_x<<std::endl;
 	if (!pvHandle->empty()) {
@@ -505,7 +505,7 @@ std::vector<double> produceNewVars(std::vector<pat::Tau>::const_iterator it, edm
 
 	}
 
-   }
+   }*/
 	 
    return newVars;
 
@@ -522,8 +522,6 @@ std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Ha
   std::vector<reco::PFCandidateRef> gammaPFCandidatesInEvent_;
   std::vector<reco::PFCandidateRef> isoPU;
 
-		std::cout<<"ngul a sord1"<<std::endl;
-
   for (size_t i = 0; i < pfCandHandle_->size(); ++i) {
 
       	reco::PFCandidateRef pfCand(pfCandHandle_, i);
@@ -533,15 +531,11 @@ std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Ha
 
   }
 
-		std::cout<<"ngul a sord2"<<std::endl;
-
   typedef reco::tau::cone::DeltaRPtrFilter<PFCandidateRef> DRFilter;
   DRFilter filter(it->p4(), 0, coneRadius);
 
   std::vector<PFCandidateRef> isoCharged_filter;
   std::vector<PFCandidateRef> isoNeutral_filter;
-
-		std::cout<<"ngul a sord3"<<std::endl;
 
   BOOST_FOREACH(const PFCandidateRef& isoObject, chargedHadPFCandidatesInEvent_) {
 
@@ -554,8 +548,6 @@ std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Ha
 
   }
 
-
-		std::cout<<"ngul a sord4"<<std::endl;
   // First select by inverted the DZ/track weight cuts. True = invert
   //std::cout << "Initial PFCands: " << chargedPFCandidatesInEvent_.size()
   //  << std::endl;
@@ -572,8 +564,6 @@ std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Ha
       if (deltaBetaFilter(cand)) isoPU.push_back(cand);
 
   }
-
-		std::cout<<"ngul a sord5"<<std::endl;
 
   double chargedPt = 0.0;
   double puPt = 0.0;
@@ -594,8 +584,6 @@ std::vector<double> produceIso(std::vector<pat::Tau>::const_iterator it, edm::Ha
       	puPt += isoObject->pt();
 
   }
-
-		std::cout<<"ngul a sord6"<<std::endl;
 
   results.push_back(chargedPt);
   results.push_back(neutralPt);
@@ -685,6 +673,9 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 
   edm::Handle<reco::BeamSpot> beamSpotHandle;
   iEvent.getByLabel(srcBeamSpot_, beamSpotHandle);
+
+  edm::Handle<reco::PFCandidateCollection> pfCandHandle_;
+  iEvent.getByLabel(pfCandSrc_, pfCandHandle_);
 
   edm::ESHandle<TransientTrackBuilder> trackBuilderHandle;
   iSetup.get<TransientTrackRecord>().get("TransientTrackBuilder", trackBuilderHandle);

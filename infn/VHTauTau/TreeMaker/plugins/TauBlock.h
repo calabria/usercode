@@ -63,9 +63,9 @@ private:
   edm::InputTag _inputTag;
   edm::InputTag _vtxInputTag;
   edm::InputTag muonSrc_;
-  edm::InputTag srcBeamSpot_;
   edm::InputTag _beamSpotInputTag;
   bool _beamSpotCorr;
+  edm::InputTag srcBeamSpot_;
   edm::InputTag genParticleSrc_;
   edm::ParameterSet qualityCutsPSet_;
   edm::InputTag pfCandSrc_;
