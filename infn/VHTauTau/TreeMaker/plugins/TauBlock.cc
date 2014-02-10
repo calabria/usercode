@@ -784,21 +784,20 @@ void TauBlock::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup) 
 
       }
 
-	reco::VertexRef pv = vertexAssociator_->associatedVertex(*(it->pfJetRef()));
-	if (pv.isNonnull() && it->leadPFChargedHadrCand().isNonnull() && TMath::Abs(pv->z() - it->vertex().z()) < 0.2 && it->tauID("decayModeFinding") > 0.5){
-      if (tb::isValidRef(it->leadPFChargedHadrCand()) && tb::isValidRef(it->leadPFChargedHadrCand()->trackRef())) {
-	reco::TrackRef trk = it->leadPFChargedHadrCand()->trackRef();
-		std::cout<<"ngul a mamet3 "<<pv->x()<<std::endl;
+      reco::VertexRef pv = vertexAssociator_->associatedVertex(*(it->pfJetRef()));
+      if (pv.isNonnull() && it->leadPFChargedHadrCand().isNonnull() && TMath::Abs(pv->z() - it->vertex().z()) < 0.2 && it->tauID("decayModeFinding") > 0.5){
+      	if (tb::isValidRef(it->leadPFChargedHadrCand()) && tb::isValidRef(it->leadPFChargedHadrCand()->trackRef())) {
+		reco::TrackRef trk = it->leadPFChargedHadrCand()->trackRef();
 		qcuts_->setPV(pv);
-		std::cout<<"ngul a mamet3"<<std::endl;
 		qcuts_->setLeadTrack(it->leadPFChargedHadrCand());
-		std::cout<<"ngul a mamet3"<<std::endl;
 		pileupQcutsGeneralQCuts_->setPV(pv);
 		pileupQcutsGeneralQCuts_->setLeadTrack(it->leadPFChargedHadrCand());
 		pileupQcutsPUTrackSelection_->setPV(pv);
 		pileupQcutsPUTrackSelection_->setLeadTrack(it->leadPFChargedHadrCand());
-		std::cout<<"ngul a mamet3"<<std::endl;
-		std::vector<double> isoQuantities = produceIso(it, pfCandHandle_, qcuts_, pileupQcutsPUTrackSelection_, pileupQcutsGeneralQCuts_, 0.5, 0.8, 0.3);}}
+		std::vector<double> isoQuantities = produceIso(it, pfCandHandle_, qcuts_, pileupQcutsPUTrackSelection_, pileupQcutsGeneralQCuts_, 0.5, 0.8, 0.3);
+
+      	}
+      }
 
       // Store Tau variables
       tauB->eta    = it->eta();
